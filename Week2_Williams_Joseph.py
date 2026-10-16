@@ -28,7 +28,9 @@ def median_time(operation, make_data, repeats=5):
     Measures the median time required to perform an operation.
 
     The data structure is copied before each timed trial so that each trial
-    begins with the same original data.
+    begins with the same original data. One untimed warm-up run is done first
+    so one-time startup costs (cold caches, first-call overhead) are not
+    included in the measurements.
     """
     times = []
 
@@ -36,6 +38,9 @@ def median_time(operation, make_data, repeats=5):
     gc.disable()
 
     try:
+        # Warm-up run (not timed).
+        operation(make_data())
+
         for _ in range(repeats):
             data = make_data()
 
@@ -143,8 +148,14 @@ def main():
     for size in SIZES:
         print(f"Benchmarking size: {size:,}")
 
-        # Use fewer repeats for very large structures to reduce runtime.
-        repeats = 5 if size <= 100_000 else 3
+        # Small sizes finish in microseconds and are noisy, so they get many
+        # repeats. Very large sizes use fewer repeats to reduce runtime.
+        if size <= 10_000:
+            repeats = 101
+        elif size <= 100_000:
+            repeats = 11
+        else:
+            repeats = 5
 
         # Create original structures.
         base_list = list(range(size))
