@@ -28,7 +28,9 @@ def median_time(operation, make_data, repeats=5):
     Measures the median time required to perform an operation.
 
     The data structure is copied before each timed trial so that each trial
-    begins with the same original data.
+    begins with the same original data. One untimed warm-up run is done first
+    so one-time startup costs (cold caches, first-call overhead) are not
+    included in the measurements.
     """
     times = []
 
@@ -36,6 +38,9 @@ def median_time(operation, make_data, repeats=5):
     gc.disable()
 
     try:
+        # Warm-up run (not timed).
+        operation(make_data())
+
         for _ in range(repeats):
             data = make_data()
 
@@ -108,21 +113,37 @@ def array_delete(data, position):
 
 
 def print_results(results):
-    """Print benchmark results in a readable table."""
-    print("\nARRAY VS. LIST PERFORMANCE RESULTS")
-    print("-" * 76)
-    print(f"{'Size':>12} {'Structure':>12} {'Operation':>12} {'Time (ms)':>15}")
-    print("-" * 76)
-
+    """Print a side-by-side table comparing Python List and NumPy Array."""
+    # Group the times by (size, operation) so each row shows both structures.
+    grouped = {}
     for row in results:
+        key = (row["size"], row["operation"])
+        grouped.setdefault(key, {})[row["structure"]] = row["time_ms"]
+
+    print("\nARRAY VS. LIST PERFORMANCE RESULTS")
+    print("-" * 78)
+    print(
+        f"{'Size':>12} {'Operation':>10} {'List (ms)':>12} "
+        f"{'NumPy (ms)':>12} {'Faster':>8} {'Ratio':>8}"
+    )
+    print("-" * 78)
+
+    for (size, operation), times in grouped.items():
+        list_ms = times["Python List"]
+        numpy_ms = times["NumPy Array"]
+
+        if numpy_ms < list_ms:
+            faster, ratio = "NumPy", list_ms / numpy_ms
+        else:
+            faster, ratio = "List", numpy_ms / list_ms
+
         print(
-            f"{row['size']:>12,} "
-            f"{row['structure']:>12} "
-            f"{row['operation']:>12} "
-            f"{row['time_ms']:>15.4f}"
+            f"{size:>12,} {operation:>10} {list_ms:>12.4f} "
+            f"{numpy_ms:>12.4f} {faster:>8} {ratio:>7.1f}x"
         )
 
-    print("-" * 76)
+    print("-" * 78)
+    print("Ratio = how many times faster the winner is.")
 
 
 def save_results_to_csv(results, filename="timing_results.csv"):
@@ -143,8 +164,14 @@ def main():
     for size in SIZES:
         print(f"Benchmarking size: {size:,}")
 
-        # Use fewer repeats for very large structures to reduce runtime.
-        repeats = 5 if size <= 100_000 else 3
+        # Small sizes finish in microseconds and are noisy, so they get many
+        # repeats. Very large sizes use fewer repeats to reduce runtime.
+        if size <= 10_000:
+            repeats = 101
+        elif size <= 100_000:
+            repeats = 11
+        else:
+            repeats = 5
 
         # Create original structures.
         base_list = list(range(size))
