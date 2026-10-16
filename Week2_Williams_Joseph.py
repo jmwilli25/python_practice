@@ -128,13 +128,7 @@ def print_results(results):
     )
     print("-" * 78)
 
-    previous_size = None
     for (size, operation), times in grouped.items():
-        # Blank line between input sizes to make groups easier to scan.
-        if previous_size is not None and size != previous_size:
-            print()
-        previous_size = size
-
         list_ms = times["Python List"]
         numpy_ms = times["NumPy Array"]
 
